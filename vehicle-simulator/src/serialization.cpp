@@ -19,8 +19,9 @@ static bool encode_vin(pb_ostream_t* stream, const pb_field_t* field, void* cons
 std::vector<uint8_t> serialize(const VehicleSignals& signals) {
     Telemetry msg = Telemetry_init_zero;
     
+    std::string vin_copy = signals.vin;
     msg.vin.funcs.encode = encode_vin;
-    msg.vin.arg = const_cast<std::string*>(&signals.vin);
+    msg.vin.arg = &vin_copy;
     msg.timestamp_ms = static_cast<int64_t>(signals.timestamp_ms);
     msg.engine_rpm = signals.engine_rpm;
     msg.battery_voltage = signals.battery_voltage;

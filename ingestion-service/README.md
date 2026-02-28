@@ -57,6 +57,33 @@ go build -o build/ingestion ./cmd/ingestion/
 - MQTT broker (e.g., Mosquitto)
 - NATS server
 
+### Install NATS
+
+#### Ubuntu / Debian
+
+```bash
+sudo apt install nats-server
+```
+
+#### Arch Linux / Omarchy
+
+```bash
+sudo pacman -S nats-server
+```
+
+#### macOS
+
+```bash
+brew install nats-server
+```
+
+#### From binary
+
+```bash
+# Download from https://github.com/nats-io/nats-server/releases
+sudo cp nats-server /usr/local/bin/
+```
+
 ### Start NATS
 
 ```bash
@@ -103,3 +130,16 @@ Invalid messages are logged and dropped.
 ## Exit Codes
 
 The service logs errors but does not expose detailed exit codes. Check logs for failure reasons.
+
+## Verification
+
+To verify the end-to-end flow:
+
+1. Start NATS: `nats-server`
+2. Start MQTT: `mosquitto`
+3. Run ingestion service: `./build/ingestion`
+4. In another terminal, run the simulator: `./build/vehicle-simulator tcp://localhost:1883`
+5. Observe ingestion logs for messages like:
+   - `subscribed to MQTT topic` - confirms MQTT connection
+   - `connected to NATS` - confirms NATS connection
+   - `published buffered messages` - confirms messages are flowing

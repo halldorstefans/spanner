@@ -59,14 +59,15 @@ Arguments:
   broker_address    MQTT broker address (e.g., tcp://localhost:1883)
 
 Options:
-  -r, --rate <hz>  Simulation rate in Hz (default: 50)
+  -r, --rate <hz>  Simulation rate in Hz (default: 1)
+  -v, --vin <vin>  Vehicle identification number (default: WBADT43423G343243)
   -h, --help       Show this help message
 ```
 
 ### Examples
 
 ```bash
-# Run with default 50 Hz rate
+# Run with default 1 Hz rate
 ./build/vehicle-simulator tcp://localhost:1883
 
 # Run at 10 Hz for testing
@@ -146,3 +147,17 @@ message Telemetry {
 ## License
 
 MIT
+
+## Verification
+
+To verify the simulator is working:
+
+1. Start MQTT broker: `mosquitto`
+2. Run the simulator: `./build/vehicle-simulator tcp://localhost:1883`
+3. Use `mosquitto_sub` to view messages on the topic:
+
+```bash
+mosquitto_sub -t "vehicles/telemetry" -v
+```
+
+You should see messages being published to the `vehicles/telemetry` topic.

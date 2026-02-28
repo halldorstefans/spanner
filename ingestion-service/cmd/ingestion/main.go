@@ -37,6 +37,7 @@ func main() {
 	if err := natsPublisher.Start(); err != nil {
 		log.Fatal().Err(err).Msg("failed to start NATS publisher")
 	}
+	defer natsPublisher.Stop()
 
 	proc := processor.New(natsPublisher, cfg.BufferSize)
 	proc.StartRetryWorker(ctx, cfg.RetryInterval)
@@ -51,6 +52,7 @@ func main() {
 	if err := mqttSubscriber.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("failed to start MQTT subscriber")
 	}
+	defer mqttSubscriber.Stop()
 
 	log.Info().Msg("ingestion service started")
 
@@ -61,9 +63,5 @@ func main() {
 	log.Info().Msg("shutting down...")
 
 	cancel()
-
-	mqttSubscriber.Stop()
-	natsPublisher.Stop()
-
 	log.Info().Msg("shutdown complete")
 }

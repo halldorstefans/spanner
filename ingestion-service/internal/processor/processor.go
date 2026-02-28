@@ -15,8 +15,8 @@ import (
 var ErrBufferFull = errors.New("buffer full, message dropped")
 
 type Processor struct {
-	buffer   *buffer.Buffer
-	nats     *nats.Publisher
+	buffer *buffer.Buffer
+	nats   *nats.Publisher
 }
 
 func New(natsPublisher *nats.Publisher, bufferSize int) *Processor {
@@ -37,6 +37,15 @@ func (p *Processor) Process(data []byte) error {
 		log.Error().Err(err).Str("vin", t.Vin).Msg("validation failed")
 		return err
 	}
+
+	log.Debug().
+		Str("vin", t.Vin).
+		Int64("timestamp_ms", t.TimestampMs).
+		Float32("engine_rpm", t.EngineRpm).
+		Float32("battery_voltage", t.BatteryVoltage).
+		Float64("latitude", t.Latitude).
+		Float64("longitude", t.Longitude).
+		Msg("received telemetry")
 
 	msg := buffer.Message{
 		Data:      data,
@@ -83,6 +92,10 @@ func (p *Processor) StartRetryWorker(ctx context.Context, interval time.Duration
 						log.Warn().Err(err).Str("vin", msg.VIN).Msg("failed to publish, re-queuing")
 						p.buffer.Add(msg)
 					} else {
+						log.Debug().
+							Str("vin", msg.VIN).
+							Int("data_len", len(msg.Data)).
+							Msg("published to NATS")
 						successCount++
 					}
 				}
