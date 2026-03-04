@@ -1,0 +1,46 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Go workspace file
+go.work
+
+# Build output
+bin/
+dist/
+
+# C++ / CMake
+build/
+CMakeCache.txt
+cmake_install.cmake
+CMakeFiles/
+Makefile.cmake
+Makefile2
+*.o
+*.a
+*.lib
+
+# Protobuf generated files
+generated/*.pb.cc
+generated/*.pb.h
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
