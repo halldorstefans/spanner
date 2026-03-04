@@ -39,8 +39,10 @@ func main() {
 	}
 	defer natsPublisher.Stop()
 
-	proc := processor.New(natsPublisher, cfg.BufferSize)
-	proc.StartRetryWorker(ctx, cfg.RetryInterval)
+	pipeline := make(chan []byte, cfg.BufferSize)
+	natsPublisher.StartWorker(ctx, pipeline)
+
+	proc := processor.New(pipeline)
 
 	mqttHandler := func(data []byte) {
 		if err := proc.Process(data); err != nil {

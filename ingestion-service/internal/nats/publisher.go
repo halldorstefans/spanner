@@ -1,12 +1,19 @@
 package nats
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/rs/zerolog/log"
+)
+
+const (
+	defaultMaxRetries = 10
+	backoffBase       = time.Second
+	maxBackoff        = 10 * time.Second
 )
 
 type Publisher struct {
@@ -76,4 +83,44 @@ func (p *Publisher) Stop() {
 	if p.conn != nil {
 		p.conn.Close()
 	}
+}
+
+func (p *Publisher) StartWorker(ctx context.Context, in <-chan []byte) {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg := <-in:
+				p.publishWithRetry(ctx, msg)
+			}
+		}
+	}()
+}
+
+func (p *Publisher) publishWithRetry(ctx context.Context, data []byte) {
+	backoff := backoffBase
+
+	for retries := 0; retries < defaultMaxRetries; retries++ {
+		err := p.Publish(data)
+		if err == nil {
+			return
+		}
+
+		log.Warn().Err(err).Int("retry", retries+1).Msg("publish failed, retrying")
+
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+
+		if backoff < maxBackoff {
+			backoff *= 2
+		}
+	}
+
+	log.Error().Int("max_retries", defaultMaxRetries).Msg("publish failed after max retries")
 }
