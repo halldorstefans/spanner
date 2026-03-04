@@ -14,6 +14,8 @@ const (
 	defaultMaxRetries = 10
 	backoffBase       = time.Second
 	maxBackoff        = 10 * time.Second
+	maxReconnects     = 30
+	reconnectWait     = 3 * time.Second
 )
 
 type Publisher struct {
@@ -34,8 +36,8 @@ func NewPublisher(server, topic string) *Publisher {
 func (p *Publisher) Start() error {
 	conn, err := nats.Connect(p.server,
 		nats.Name("ingestion-service"),
-		nats.MaxReconnects(-1),
-		nats.ReconnectWait(3*time.Second),
+		nats.MaxReconnects(maxReconnects),
+		nats.ReconnectWait(reconnectWait),
 		nats.ReconnectHandler(p.onReconnect),
 		nats.ClosedHandler(p.onClosed),
 	)

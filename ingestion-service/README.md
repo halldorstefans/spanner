@@ -5,27 +5,27 @@ Buffered best-effort ingestion from MQTT to NATS for vehicle telemetry.
 ## Architecture
 
 ```
-MQTT Broker ──► Subscriber ──► Processor ──► Buffer ──► Retry Worker ──► NATS
-                                  │                                        │
-                                  └────────── Validation ──────────────────┘
+MQTT Broker ──► Subscriber ──► Processor ──► Buffer ──► NATS Publisher
+                              │                              │
+                              └────────── Validation ────────┘
 ```
 
 ### Components
 
-- **MQTT Subscriber**: Subscribes to `vehicles/telemetry`, handles reconnection
+- **MQTT Subscriber**: Subscribes to `vehicles/telemetry` with QoS 1, handles auto-reconnection
 - **Processor**: Decodes protobuf, validates telemetry, buffers messages
 - **Buffer**: In-memory bounded queue for messages when NATS is unavailable
-- **Retry Worker**: Periodically attempts to publish buffered messages to NATS
-- **NATS Publisher**: Publishes to `ingest.telemetry`, handles reconnection
+- **NATS Publisher**: Publishes to `ingest.telemetry`, retries failed messages with exponential backoff (up to 10 attempts)
 
 ## Delivery Guarantees
 
 This is **not** a fully reliable ingestion service. It provides:
 
 - **MQTT → Service**: At-least-once (QoS 1)
-- **Service → NATS**: Best-effort (fire-and-forget, no delivery confirmation)
+- **Service → NATS**: Best-effort with retry (up to 10 attempts with exponential backoff per message)
 - **Buffer**: Bounded in-memory; messages are dropped when full
 - **On shutdown**: Remaining buffer messages are dropped
+- **NATS reconnection**: Up to 30 attempts with 3 second wait between attempts
 
 In other words:
 
@@ -41,8 +41,18 @@ In other words:
 | `NATS_SERVER` | `nats://localhost:4222` | NATS server address |
 | `NATS_TOPIC` | `ingest.telemetry` | NATS topic to publish to |
 | `BUFFER_SIZE` | `100` | Maximum buffer capacity |
-| `RETRY_INTERVAL_SECONDS` | `5` | Buffer retry interval (seconds) |
 | `LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+
+### MQTT Behavior
+- **QoS**: 1 (at-least-once delivery)
+- **Clean Session**: Yes
+- **Keep Alive**: 60 seconds
+- **Auto Reconnect**: Enabled
+
+### NATS Behavior
+- **Max Reconnects**: 30 attempts
+- **Reconnect Wait**: 3 seconds
+- **Publish Retry**: Up to 10 attempts per message with exponential backoff (1s base, 10s max)
 
 ## Building
 

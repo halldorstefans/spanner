@@ -4,12 +4,12 @@ Deterministic vehicle signal simulator for edge-to-cloud telemetry.
 
 ## Features
 
-- Fixed loop rate using `steady_clock` with `sleep_until` (no drift accumulation)
+- Precise timing loop using `steady_clock` to prevent drift accumulation
 - Simulated vehicle signals: VIN, timestamp, RPM, battery voltage, latitude, longitude
 - Protobuf serialization using nanopb (embedded-friendly)
 - MQTT publishing via Eclipse Paho MQTT C++ library
-- Clean shutdown handling (SIGINT)
-- Connection retry logic with configurable timeout
+- Graceful shutdown handling (SIGINT)
+- Automatic connection retry on failure
 
 ## Dependencies
 
@@ -86,7 +86,7 @@ Options:
 - **Keep Alive**: 60 seconds
 - **Client ID**: `vehicle-simulator-<pid>` (includes process ID)
 - **Reconnect Delay**: 3 seconds between retry attempts
-- **Connection Timeout**: 30 seconds (configurable)
+- **Connection Timeout**: 10 seconds (initial connection), 5 seconds (reconnection)
 
 ## Telemetry Signals
 
@@ -94,19 +94,33 @@ The simulator generates the following signals at each tick:
 
 | Field | Type | Description | Formula |
 |-------|------|-------------|---------|
-| `vin` | string | Vehicle Identification Number | Hardcoded: `WBADT43423G343243` |
-| `timestamp_ms` | uint64 | Simulation timestamp | `tick * 20` (milliseconds) |
+| `vin` | string | Vehicle Identification Number | User-configurable via CLI (default: `WBADT43423G343243`) |
+| `timestamp_ms` | uint64 | Simulation timestamp | Unix epoch time in milliseconds (wall clock) |
 | `engine_rpm` | float | Engine RPM | `800 + 200*sin(tick*0.1) + tick*0.5` (capped at 6000) |
-| `battery_voltage` | float | Battery voltage | `12.0 + 2.0*cos(tick*0.05)` (volts) |
-| `latitude` | double | GPS latitude | `37.7749 + 0.001*sin(tick*0.01)` (San Francisco base) |
-| `longitude` | double | GPS longitude | `-122.4194 + 0.001*cos(tick*0.01)` (San Francisco base) |
+| `battery_voltage` | float | Battery voltage | 12.6V base with noise and load dip (see below) |
+| `latitude` | double | GPS latitude | 37.7749° base ±0.001° (San Francisco area) |
+| `longitude` | double | GPS longitude | -122.4194° base ±0.001° (San Francisco area) |
 
-Signals follow periodic patterns with sine/cosine variations to simulate realistic vehicle behavior.
+## Signal Details
+
+### Battery Voltage
+The battery voltage includes realistic variations:
+- Base voltage: 12.6V
+- Random noise: ±0.05V
+- Load dip: -0.8V when `tick % 500 < 10` (simulates accessory load)
+
+### GPS Coordinates
+The vehicle position orbits around San Francisco:
+- Base latitude: 37.7749°
+- Base longitude: -122.4194°
+- Variation: ±0.001° with sine/cosine patterns
 
 ## Signal Handling
 
-The simulator handles clean shutdown via:
-- SIGINT (Ctrl+C)
+The simulator handles signals gracefully:
+- **SIGINT (Ctrl+C)**: Triggers clean shutdown - waits for current iteration to complete, then disconnects from MQTT broker and exits cleanly
+
+The main loop also detects and reports timing overruns when processing takes longer than the configured rate.
 
 ## Architecture
 
@@ -125,9 +139,11 @@ proto/
 
 generated/
   proto/
-    vehicle.pb.c    - Generated nanopb C source
-    vehicle.pb.h    - Generated nanopb C header
+    vehicle.pb.c    - Generated nanopb C source (build artifact)
+    vehicle.pb.h    - Generated nanopb C header (build artifact)
 ```
+
+> **Note**: The `generated/` directory is created during the build process by the nanopb code generator.
 
 ## Protobuf Schema
 
