@@ -1,0 +1,69 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: spanner
+      POSTGRES_USER: spanner
+      POSTGRES_PASSWORD: spanner
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spanner"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 3 mosquitto_pub -h localhost -t health -m ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  ingest:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.ingest
+    environment:
+      DATABASE_URL: postgres://spanner:spanner@postgres:5432/spanner?sslmode=disable
+      MQTT_BROKER: mosquitto:1883
+      API_PORT: 8000
+      LOG_LEVEL: info
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    volumes:
+      - ./infra/migrations:/migrations
+    restart: on-failure
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - postgres
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: spanner
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DATABASE_TYPE: postgres
+      GF_DATABASE_HOST: postgres:5432
+      GF_DATABASE_NAME: spanner
+      GF_DATABASE_USER: spanner
+      GF_DATABASE_PASSWORD: spanner
+
+volumes:
+  pg_data:
+  grafana_data:

@@ -1,0 +1,18 @@
+[env:pico32]
+platform = espressif32
+board = pico32
+framework = arduino
+monitor_speed = 115200
+
+lib_deps =
+    knolleary/PubSubClient@^2.8
+    bblanchon/ArduinoJson@^6.21
+    adafruit/Adafruit INA219@^1.2
+    mikalhart/TinyGPSPlus@^1.0
+    electroniccats/MPU6050@^1.0
+
+build_flags =
+    -DWIFI_SSID=\"your_ssid_here\"
+    -DWIFI_PASSWORD=\"your_password_here\"
+    -DMQTT_BROKER_IP=\"192.168.1.x\"
+    -DVEHICLE_VIN=\"MGBGT1972001\"
