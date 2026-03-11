@@ -12,46 +12,49 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-func main() {
-	broker := flag.String("broker", "localhost:1883", "MQTT broker address")
-	vin := flag.String("vin", "MGBGT1972001", "Vehicle VIN")
-	mode := flag.String("mode", "drive", "Sim mode: static, drive, scenario")
-	scenario := flag.String("scenario", "", "Scenario name (required when mode=scenario)")
-	verbose := flag.Bool("verbose", false, "Log every published message")
+type config struct {
+	broker   string
+	vin      string
+	mode     string
+	scenario string
+	verbose  bool
+	help     bool
+}
+
+func parseFlags() config {
+	cfg := config{}
+
+	flag.StringVar(&cfg.broker, "broker", "localhost:1883", "MQTT broker address")
+	flag.StringVar(&cfg.vin, "vin", "MGBGT1972001", "Vehicle VIN")
+	flag.StringVar(&cfg.mode, "mode", "drive", "Sim mode: static, drive, scenario")
+	flag.StringVar(&cfg.scenario, "scenario", "", "Scenario name (required when mode=scenario)")
+	flag.BoolVar(&cfg.verbose, "verbose", false, "Log every published message")
+	flag.BoolVar(&cfg.help, "help", false, "Show help")
 
 	flag.Parse()
 
-	if *mode == "scenario" && *scenario == "" {
+	if cfg.help {
+		flag.Usage()
+		os.Exit(0)
+	}
+
+	if cfg.mode == "scenario" && cfg.scenario == "" {
 		fmt.Fprintln(os.Stderr, "Error: --scenario is required when --mode=scenario")
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	if *scenario != "" && *scenario != "low_battery" && *scenario != "hard_braking" && *scenario != "gps_loss" {
-		fmt.Fprintf(os.Stderr, "Error: invalid scenario %q\n", *scenario)
+	if cfg.scenario != "" && cfg.scenario != "low_battery" && cfg.scenario != "hard_braking" && cfg.scenario != "gps_loss" {
+		fmt.Fprintf(os.Stderr, "Error: invalid scenario %q\n", cfg.scenario)
 		os.Exit(1)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	return cfg
+}
 
-	if *verbose {
-		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	}
-
-	simMode := Mode(*mode)
-	simScenario := Scenario(*scenario)
-
-	logger.Info("starting spanner-sim",
-		"broker", *broker,
-		"vin", *vin,
-		"mode", simMode,
-		"scenario", simScenario,
-	)
-
-	sim := NewSimulator(*vin, simMode, simScenario, *verbose)
-
+func setupMQTT(broker string, logger *slog.Logger) mqtt.Client {
 	opts := mqtt.NewClientOptions().
-		AddBroker(fmt.Sprintf("tcp://%s", *broker)).
+		AddBroker(fmt.Sprintf("tcp://%s", broker)).
 		SetClientID(fmt.Sprintf("spanner-sim-%d", os.Getpid())).
 		SetCleanSession(true).
 		SetKeepAlive(60).
@@ -65,7 +68,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("connected to MQTT broker", "broker", *broker)
+	logger.Info("connected to MQTT broker", "broker", broker)
+	return client
+}
+
+func main() {
+	cfg := parseFlags()
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	if cfg.verbose {
+		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	}
+
+	simMode := Mode(cfg.mode)
+	simScenario := Scenario(cfg.scenario)
+
+	logger.Info("starting spanner-sim",
+		"broker", cfg.broker,
+		"vin", cfg.vin,
+		"mode", simMode,
+		"scenario", simScenario,
+	)
+
+	sim := NewSimulator(cfg.vin, simMode, simScenario, cfg.verbose)
+	client := setupMQTT(cfg.broker, logger)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
