@@ -15,10 +15,16 @@ Start all services:
 docker-compose up --build
 ```
 
+Build the simulator:
+
+```bash
+cd server && make build
+```
+
 Run the simulator:
 
 ```bash
-go run ./cmd/sim --mode drive
+./bin/spanner-sim --mode drive
 ```
 
 ## Services

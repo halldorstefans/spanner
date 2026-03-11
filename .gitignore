@@ -56,3 +56,7 @@ Thumbs.db
 
 # Docker
 *.dockerignore
+
+# Binaries in source tree (use bin/ instead)
+server/cmd/sim/spanner-sim
+server/cmd/ingest/spanner-ingest
