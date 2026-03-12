@@ -90,7 +90,7 @@ type IMUPayload struct {
 	Gz float64 `json:"gz"`
 }
 
-func ParsePayload(msgType MessageType, payload []byte, signalCache SignalCache) (*ParsedMessage, error) {
+func ParsePayload(msgType MessageType, payload []byte) (*ParsedMessage, error) {
 	switch msgType {
 	case MessageTypeBattery:
 		return parseBattery(payload)
@@ -109,7 +109,7 @@ func parseBattery(payload []byte) (*ParsedMessage, error) {
 		return nil, fmt.Errorf("failed to parse battery payload: %w", err)
 	}
 
-	ts := time.UnixMilli(int64(p.Ts * 1000))
+	ts := time.Unix(0, int64(p.Ts*1e9))
 
 	return &ParsedMessage{
 		Ts: ts,
@@ -125,7 +125,7 @@ func parseGPS(payload []byte) (*ParsedMessage, error) {
 		return nil, fmt.Errorf("failed to parse GPS payload: %w", err)
 	}
 
-	ts := time.UnixMilli(int64(p.Ts * 1000))
+	ts := time.Unix(0, int64(p.Ts*1e9))
 
 	return &ParsedMessage{
 		Ts: ts,
@@ -144,7 +144,7 @@ func parseIMU(payload []byte) (*ParsedMessage, error) {
 		return nil, fmt.Errorf("failed to parse IMU payload: %w", err)
 	}
 
-	ts := time.UnixMilli(int64(p.Ts * 1000))
+	ts := time.Unix(0, int64(p.Ts*1e9))
 
 	return &ParsedMessage{
 		Ts: ts,

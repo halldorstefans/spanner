@@ -12,11 +12,12 @@ import (
 )
 
 type Postgres struct {
-	pool *pgxpool.Pool
-	log  *slog.Logger
+	pool         *pgxpool.Pool
+	log          *slog.Logger
+	queryTimeout time.Duration
 }
 
-func NewPostgres(ctx context.Context, databaseURL string, log *slog.Logger) (*Postgres, error) {
+func NewPostgres(ctx context.Context, databaseURL string, log *slog.Logger, queryTimeoutSeconds int) (*Postgres, error) {
 	poolConfig, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, err
@@ -31,7 +32,7 @@ func NewPostgres(ctx context.Context, databaseURL string, log *slog.Logger) (*Po
 		return nil, err
 	}
 
-	return &Postgres{pool: pool, log: log}, nil
+	return &Postgres{pool: pool, log: log, queryTimeout: time.Duration(queryTimeoutSeconds) * time.Second}, nil
 }
 
 func (p *Postgres) LoadSignalDefinitions(ctx context.Context) (telemetry.SignalCache, error) {
@@ -63,21 +64,30 @@ func (p *Postgres) InsertTelemetry(ctx context.Context, vin string, ts time.Time
 		return nil
 	}
 
-	batch := &pgx.Batch{}
-	for _, sig := range signals {
-		batch.Queue(
-			"INSERT INTO telemetry (vin, ts, signal, value) VALUES ($1, $2, $3, $4)",
-			vin, ts, sig.Signal, sig.Value,
-		)
-	}
+	const batchSize = 1000
+	for i := 0; i < len(signals); i += batchSize {
+		end := i + batchSize
+		if end > len(signals) {
+			end = len(signals)
+		}
+		chunk := signals[i:end]
 
-	br := p.pool.SendBatch(ctx, batch)
-	defer br.Close()
+		batch := &pgx.Batch{}
+		for _, sig := range chunk {
+			batch.Queue(
+				"INSERT INTO telemetry (vin, ts, signal, value) VALUES ($1, $2, $3, $4)",
+				vin, ts, sig.Signal, sig.Value,
+			)
+		}
 
-	for i := 0; i < len(signals); i++ {
-		if _, err := br.Exec(); err != nil {
-			p.log.Error("failed to insert telemetry", "error", err, "vin", vin)
-			return err
+		br := p.pool.SendBatch(ctx, batch)
+		defer br.Close()
+
+		for j := 0; j < len(chunk); j++ {
+			if _, err := br.Exec(); err != nil {
+				p.log.Error("failed to insert telemetry", "error", err, "vin", vin)
+				return err
+			}
 		}
 	}
 
@@ -93,6 +103,9 @@ func (p *Postgres) QuerySignals(ctx context.Context, vin, signal string, from, t
 	if limit <= 0 {
 		limit = 500
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, p.queryTimeout)
+	defer cancel()
 
 	rows, err := p.pool.Query(ctx, `
 		SELECT ts, value 
@@ -123,6 +136,9 @@ func (p *Postgres) QuerySignals(ctx context.Context, vin, signal string, from, t
 }
 
 func (p *Postgres) QueryLatest(ctx context.Context, vin string) (map[string]float64, error) {
+	ctx, cancel := context.WithTimeout(ctx, p.queryTimeout)
+	defer cancel()
+
 	rows, err := p.pool.Query(ctx, `
 		SELECT t.signal, t.value
 		FROM telemetry t

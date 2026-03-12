@@ -3,7 +3,6 @@ package ingest
 import (
 	"context"
 	"log/slog"
-	"sync"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/halldorstefans/spanner/server/internal/store"
@@ -11,34 +10,26 @@ import (
 )
 
 type Subscriber struct {
-	broker   string
-	client   mqtt.Client
-	db       *store.Postgres
-	signals  telemetry.SignalCache
-	log      *slog.Logger
-	mu       sync.RWMutex
-	handlers map[string]MessageHandler
+	broker  string
+	client  mqtt.Client
+	ctx     context.Context
+	db      *store.Postgres
+	signals telemetry.SignalCache
+	log     *slog.Logger
 }
 
-type MessageHandler func(vin string, msg *telemetry.ParsedMessage)
-
 func NewSubscriber(broker string, db *store.Postgres, signals telemetry.SignalCache, log *slog.Logger) *Subscriber {
-	s := &Subscriber{
-		broker:   broker,
-		db:       db,
-		signals:  signals,
-		log:      log,
-		handlers: make(map[string]MessageHandler),
+	return &Subscriber{
+		broker:  broker,
+		db:      db,
+		signals: signals,
+		log:     log,
 	}
-
-	s.handlers["battery"] = s.handleBattery
-	s.handlers["gps"] = s.handleGPS
-	s.handlers["imu"] = s.handleIMU
-
-	return s
 }
 
 func (s *Subscriber) Start(ctx context.Context) error {
+	s.ctx = ctx
+
 	opts := mqtt.NewClientOptions().
 		AddBroker(s.broker).
 		SetClientID("spanner-ingest").
@@ -94,7 +85,7 @@ func (s *Subscriber) handleMessage(msg mqtt.Message) {
 		return
 	}
 
-	parsed, err := telemetry.ParsePayload(msgType, payload, s.signals)
+	parsed, err := telemetry.ParsePayload(msgType, payload)
 	if err != nil {
 		s.log.Debug("failed to parse payload", "topic", topic, "error", err)
 		return
@@ -120,30 +111,12 @@ func (s *Subscriber) handleMessage(msg mqtt.Message) {
 
 	parsed.Signals = validSignals
 
-	handler, ok := s.handlers[string(msgType)]
-	if !ok {
-		s.log.Debug("no handler for message type", "type", msgType)
-		return
-	}
-
-	handler(vin, parsed)
+	s.handleTelemetry(s.ctx, vin, parsed)
 }
 
-func (s *Subscriber) handleBattery(vin string, msg *telemetry.ParsedMessage) {
-	if err := s.db.InsertTelemetry(context.Background(), vin, msg.Ts, msg.Signals); err != nil {
-		s.log.Error("failed to insert battery telemetry", "error", err, "vin", vin)
-	}
-}
-
-func (s *Subscriber) handleGPS(vin string, msg *telemetry.ParsedMessage) {
-	if err := s.db.InsertTelemetry(context.Background(), vin, msg.Ts, msg.Signals); err != nil {
-		s.log.Error("failed to insert GPS telemetry", "error", err, "vin", vin)
-	}
-}
-
-func (s *Subscriber) handleIMU(vin string, msg *telemetry.ParsedMessage) {
-	if err := s.db.InsertTelemetry(context.Background(), vin, msg.Ts, msg.Signals); err != nil {
-		s.log.Error("failed to insert IMU telemetry", "error", err, "vin", vin)
+func (s *Subscriber) handleTelemetry(ctx context.Context, vin string, msg *telemetry.ParsedMessage) {
+	if err := s.db.InsertTelemetry(ctx, vin, msg.Ts, msg.Signals); err != nil {
+		s.log.Error("failed to insert telemetry", "error", err, "vin", vin)
 	}
 }
 
@@ -151,19 +124,4 @@ func (s *Subscriber) Stop() {
 	if s.client != nil && s.client.IsConnected() {
 		s.client.Disconnect(250)
 	}
-}
-
-func (s *Subscriber) UpdateSignalCache(cache telemetry.SignalCache) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.signals = cache
-}
-
-func (s *Subscriber) RefreshSignalCache(ctx context.Context) error {
-	cache, err := s.db.LoadSignalDefinitions(ctx)
-	if err != nil {
-		return err
-	}
-	s.UpdateSignalCache(cache)
-	return nil
 }
