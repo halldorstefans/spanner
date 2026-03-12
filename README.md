@@ -7,6 +7,8 @@ Spanner is an open-source, self-hosted vehicle telemetry platform designed for c
 - Docker Desktop
 - Go 1.26
 
+> **Note:** docker-compose automatically starts PostgreSQL and runs database migrations.
+
 ## Quick Start
 
 Start all services:

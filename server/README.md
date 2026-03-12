@@ -39,10 +39,9 @@ export LOG_LEVEL="debug"
 
 ## Running
 
-### Prerequisites
+## Prerequisites
 
-- PostgreSQL database with schema (see `infra/migrations/`)
-- MQTT broker (e.g., Mosquitto)
+- PostgreSQL and MQTT broker are handled automatically by docker-compose.
 
 ### Local Development
 
