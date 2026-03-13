@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/halldorstefans/spanner/server/internal/store"
-	"github.com/halldorstefans/spanner/server/internal/telemetry"
 	"log/slog"
 )
 
@@ -32,12 +31,6 @@ func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) HandleGetSignals(w http.ResponseWriter, r *http.Request) {
 	vin := chi.URLParam(r, "vin")
-
-	if !telemetry.IsValidVIN(vin) {
-		http.Error(w, "invalid VIN format", http.StatusBadRequest)
-		return
-	}
-
 	signal := chi.URLParam(r, "signal")
 
 	fromStr := r.URL.Query().Get("from")
@@ -89,11 +82,6 @@ func (h *Handler) HandleGetSignals(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) HandleGetLatest(w http.ResponseWriter, r *http.Request) {
 	vin := chi.URLParam(r, "vin")
-
-	if !telemetry.IsValidVIN(vin) {
-		http.Error(w, "invalid VIN format", http.StatusBadRequest)
-		return
-	}
 
 	results, err := h.db.QueryLatest(r.Context(), vin)
 	if err != nil {
