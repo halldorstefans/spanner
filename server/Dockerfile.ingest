@@ -14,10 +14,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o ingest ./cmd/ingest/
 FROM alpine:latest
 
 RUN apk add --no-cache ca-certificates tzdata curl && \
-    curl -L -o /usr/local/bin/migrate https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz && \
-    tar -xzf /usr/local/bin/migrate.linux-amd64.tar.gz -C /usr/local/bin && \
-    rm /usr/local/bin/migrate.linux-amd64.tar.gz && \
-    chmod +x /usr/local/bin/migrate && \
+    curl -Lf https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz -o /tmp/migrate.tar.gz && \
+    tar -xzf /tmp/migrate.tar.gz -C /usr/local/bin && \
+    rm /tmp/migrate.tar.gz && \
+    chmod +x /usr/local/bin/migrate && \    
     adduser -D -u 1001 -s /bin/sh appuser
 
 COPY --from=builder /build/ingest /ingest
