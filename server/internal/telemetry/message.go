@@ -6,7 +6,22 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 )
+
+const vinLength = 17
+
+func IsValidVIN(vin string) bool {
+	if len(vin) != vinLength {
+		return false
+	}
+	for _, c := range vin {
+		if !unicode.IsLetter(c) && !unicode.IsDigit(c) {
+			return false
+		}
+	}
+	return true
+}
 
 type MessageType string
 
@@ -51,6 +66,10 @@ func ParseTopic(topic string) (vin string, msgType MessageType, err error) {
 	vin = parts[1]
 	if vin == "" {
 		return "", "", errors.New("empty VIN in topic")
+	}
+
+	if !IsValidVIN(vin) {
+		return "", "", errors.New("invalid VIN format")
 	}
 
 	switch parts[2] {

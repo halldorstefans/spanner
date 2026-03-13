@@ -6,14 +6,12 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-	"unicode"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/halldorstefans/spanner/server/internal/store"
+	"github.com/halldorstefans/spanner/server/internal/telemetry"
 	"log/slog"
 )
-
-const vinLength = 17
 
 type Handler struct {
 	db     *store.Postgres
@@ -27,18 +25,6 @@ func NewHandler(db *store.Postgres, logger *slog.Logger) *Handler {
 	}
 }
 
-func isValidVIN(vin string) bool {
-	if len(vin) != vinLength {
-		return false
-	}
-	for _, c := range vin {
-		if !unicode.IsLetter(c) && !unicode.IsDigit(c) {
-			return false
-		}
-	}
-	return true
-}
-
 func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -47,7 +33,7 @@ func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleGetSignals(w http.ResponseWriter, r *http.Request) {
 	vin := chi.URLParam(r, "vin")
 
-	if !isValidVIN(vin) {
+	if !telemetry.IsValidVIN(vin) {
 		http.Error(w, "invalid VIN format", http.StatusBadRequest)
 		return
 	}
@@ -104,7 +90,7 @@ func (h *Handler) HandleGetSignals(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleGetLatest(w http.ResponseWriter, r *http.Request) {
 	vin := chi.URLParam(r, "vin")
 
-	if !isValidVIN(vin) {
+	if !telemetry.IsValidVIN(vin) {
 		http.Error(w, "invalid VIN format", http.StatusBadRequest)
 		return
 	}
