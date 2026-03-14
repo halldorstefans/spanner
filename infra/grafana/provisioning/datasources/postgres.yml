@@ -1,0 +1,17 @@
+apiVersion: 1
+
+datasources:
+  - name: PostgreSQL
+    uid: postgres
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: spanner
+    secureJsonData:
+      password: 'spanner'
+    isDefault: true
+    jsonData:
+      database: spanner
+      sslmode: "disable"
+      postgresVersion: 1800
+      timescaledb: false
